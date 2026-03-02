@@ -40,6 +40,7 @@ class Birthday(Field):
             birthday_dt = datetime.strptime(value, "%d.%m.%Y").date()
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
+
         super().__init__(birthday_dt)
 
     def __str__(self):
@@ -83,8 +84,8 @@ class Record:
 
     def __str__(self):
         phones_str = "; ".join(p.value for p in self.phones) if self.phones else "no phones"
-        bday_str = str(self.birthday) if self.birthday else "no birthday"
-        return f"Contact name: {self.name.value}, phones: {phones_str}, birthday: {bday_str}"
+        birthday_str = str(self.birthday) if self.birthday else "no birthday"
+        return f"Contact name: {self.name.value}, phones: {phones_str}, birthday: {birthday_str}"
 
 
 class AddressBook(UserDict):
@@ -99,33 +100,40 @@ class AddressBook(UserDict):
 
     def get_upcoming_birthdays(self):
         today = date.today()
-        end_date = today + timedelta(days=7)
-
-        result = []
+        upcoming = []
 
         for record in self.data.values():
             if record.birthday is None:
                 continue
 
             bday = record.birthday.value
-            this_year_bday = bday.replace(year=today.year)
 
-            if this_year_bday < today:
-                this_year_bday = bday.replace(year=today.year + 1)
+            # обробка високосного року
+            try:
+                birthday_this_year = bday.replace(year=today.year)
+            except ValueError:
+                # якщо 29 лютого і рік не високосний → 28 лютого
+                birthday_this_year = date(today.year, 2, 28)
 
-            if today <= this_year_bday <= end_date:
-                congrats_date = this_year_bday
+            if birthday_this_year < today:
+                try:
+                    birthday_this_year = bday.replace(year=today.year + 1)
+                except ValueError:
+                    birthday_this_year = date(today.year + 1, 2, 28)
 
-                if congrats_date.weekday() == 5:  # Saturday
-                    congrats_date += timedelta(days=2)
-                elif congrats_date.weekday() == 6:  # Sunday
-                    congrats_date += timedelta(days=1)
+            if 0 <= (birthday_this_year - today).days <= 7:
+                congratulation_date = birthday_this_year
 
-                result.append(
+                if congratulation_date.weekday() == 5:
+                    congratulation_date += timedelta(days=2)
+                elif congratulation_date.weekday() == 6:
+                    congratulation_date += timedelta(days=1)
+
+                upcoming.append(
                     {
                         "name": record.name.value,
-                        "congratulation_date": congrats_date.strftime("%d.%m.%Y"),
+                        "congratulation_date": congratulation_date.strftime("%d.%m.%Y"),
                     }
                 )
 
-        return result
+        return upcoming
